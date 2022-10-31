@@ -1,0 +1,64 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: playground
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    cert-manager.io/cluster-issuer: default
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-sso@kubernetescrd
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    external-dns.alpha.kubernetes.io/target: traefik.k-space.ee
+spec:
+  rules:
+  - host: playground.k-space.ee
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/events"
+        backend:
+          service:
+            name: log-viewer-backend
+            port:
+              number: 3002
+  tls:
+  - hosts:
+    - playground.k-space.ee
+    secretName: playground-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: log-viewer-backend
+spec:
+  type: ClusterIP
+  selector:
+    app: log-viewer-backend
+  ports:
+    - protocol: TCP
+      port: 3002
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-viewer-backend
+spec:
+  selector:
+    matchLabels:
+      app: log-viewer-backend
+  template:
+    metadata:
+      labels:
+        app: log-viewer-backend
+    spec:
+      containers:
+      - name: log-viewer-backend
+        image: harbor.k-space.ee/playground/log-viewer-backend
+        ports:
+        - containerPort: 3002
+        env:
+          - name: MONGODB_HOST
+            valueFrom:
+              secretKeyRef:
+                name: mongodb-application-readwrite
+                key: connectionString.standard
