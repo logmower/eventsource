@@ -6,7 +6,6 @@ metadata:
 build:
   artifacts:
   - image: harbor.k-space.ee/playground/log-viewer-backend
-    context: backend
     docker:
       dockerfile: Dockerfile
 
@@ -24,7 +23,6 @@ profiles:
     build:
       artifacts:
         - image: harbor.k-space.ee/playground/log-viewer-backend
-          context: backend
           docker:
             target: dev
           sync:
