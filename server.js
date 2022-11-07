@@ -40,6 +40,11 @@ async function run() {
     eventStream.write(message)
   }
 
+  const writeTimeoutNotify = (eventStream) => {
+    const message = `id: 1\nevent: timeout\ndata: ${JSON.stringify({})}\n\n`
+    eventStream.write(message)
+  }
+
   const writeFilterOptions = async (eventStream, filterOptions, query) => {
     let response = {}
     if (Object.keys(query).length === 0) {
@@ -101,7 +106,7 @@ async function run() {
         } catch (e) {
           // Handle request timing out as it is expected
           if (e.codeName === 'MaxTimeMSExpired') {
-              // TODO: notify frontend that there's more
+              writeTimeoutNotify(eventStream)
           } else {
             throw e
           }
