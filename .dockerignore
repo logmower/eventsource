@@ -1,5 +1,18 @@
-./node_modules
-./build
-.git
-*.md
-.gitignore
+.kpt-pipeline/
+k8s/
+skaffold.yaml
+README.md
+.git/
+node_modules/
+.drone.yml
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.kpt-pipeline
