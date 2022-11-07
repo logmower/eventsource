@@ -10,7 +10,6 @@ const historyNumber = parseInt(process.env.HISTORY_AMOUNT) || 50;
 
 // Stream set-up variables
 let changeStream;
-const options = { fullDocument: "updateLookup" };
 const pipeline = [];
 const PORT = process.env.PORT || 3002;
 
@@ -29,49 +28,86 @@ async function run() {
   await mongoClient.connect();
   const collection = mongoClient.db().collection(mongoCollection);
 
-  changeStream = collection.watch(pipeline, options);
-  console.log("Started watching changes in database");
+  const filterOptions = [
+    'kubernetes.namespace',
+    'kubernetes.pod.name',
+    'kubernetes.container.name'
+  ]
 
-  const filterOptions = {
-    'kubernetes.namespace': await collection.distinct('kubernetes.namespace'),
-    'kubernetes.pod.name': await collection.distinct('kubernetes.pod.name'),
-    'kubernetes.container.name': await collection.distinct('kubernetes.container.name')
-  }
-
-  const writeMessage = (response, blob) => {
+  const writeMessage = (eventStream, blob) => {
     const id = blob._id || null
     const message = `id: ${id}\nevent: message\ndata: ${JSON.stringify(blob)}\n\n`
-    response.write(message)
+    eventStream.write(message)
+  }
+
+  const writeFilterOptions = async (eventStream, filterOptions, query) => {
+    let response = {}
+    if (Object.keys(query).length === 0) {
+      response[filterOptions[0]] = {
+        parentKey: null,
+        parentValue: null,
+        options: await collection.distinct(filterOptions[0])
+      }
+    } else {
+      let deepestKey;
+      let parentKey;
+      for (let index in filterOptions) {
+        let key = filterOptions[index]
+        if (Object.keys(query).indexOf(key) === -1) {
+          // Compare allowed filter options and query until a filter option is found which query doesn't include.
+          deepestKey = key
+          parentKey = filterOptions[index - 1]
+          break
+        }
+      }
+      if (deepestKey !== undefined) {
+        response[deepestKey] = {
+          parentKey: parentKey,
+          parentValue: query[parentKey],
+          options: await collection.distinct(deepestKey, query)
+        }
+      }
+    }
+    eventStream.write(`id: 1\nevent: filters\ndata: ${JSON.stringify(response)}\n\n`)
   }
 
   // Triggers on GET at /event route
-  app.get('/events', async function (request, response) {
-
-      // Notify SSE to React
+  app.get('/events', async function (request, eventStream) {
     const header = { 'Content-Type': 'text/event-stream', 'Connection': 'keep-alive' };
-    response.writeHead(200, "OK", header);
+    eventStream.writeHead(200, "OK", header);
 
-    const message = `id: 1\nevent: filters\ndata: ${JSON.stringify(filterOptions)}\n\n`
-    response.write(message)
-
-    const historyCursor = collection.find()
-        .sort({$natural:-1})
-        .limit(historyNumber).toArray().then((res) => {
-          res.reverse().forEach((document) => {
-            writeMessage(response, document)
-          })
-        });
-
-    const changeListener = async (change) => {
-      // Ignore events without fullDocument, e.g. deletes.
-      if (change.fullDocument) {
-        writeMessage(response, change.fullDocument)
+    if (Object.keys(request.query).length === 0) {
+      // If no params are defined, it's the initial request which will return filters and some initial lines
+      await writeFilterOptions(eventStream, filterOptions, {})
+      collection.find()
+          .sort({$natural:-1})
+          .limit(historyNumber).toArray().then((res) => {
+            res.reverse().forEach((document) => {
+              writeMessage(eventStream, document)
+            })
+          });
+    } else {
+      const query = Object.fromEntries(
+          Object.entries(request.query).filter(([key, value]) =>  filterOptions.includes(key))
+      )
+      const queryLength = Object.keys(query).length
+      if (queryLength > 0) {
+        try {
+          await writeFilterOptions(eventStream, filterOptions, query)
+          const cursor = collection.find(query, { maxTimeMS: Math.pow(queryLength, queryLength)  });
+          await cursor.forEach((d) => {
+            writeMessage(eventStream, d)
+          });
+        } catch (e) {
+          // Handle request timing out as it is expected
+          if (e.codeName === 'MaxTimeMSExpired') {
+              // TODO: notify frontend that there's more
+          } else {
+            throw e
+          }
+        }
       }
     }
-    changeStream.on("change", changeListener);
-    response.on('close', () => {
-      changeStream.removeListener("change", changeListener)
-    })
   });
 
   app.listen(PORT);
