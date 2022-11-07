@@ -5,12 +5,7 @@ const express = require('express');
 // Mongo set-up variables
 const mongoCollection = process.env.MONGO_COLLECTION || 'log';
 const mongoUri = process.env.MONGODB_HOST || 'mongodb://127.0.0.1:27017/default?replicaSet=rs0';
-
 const historyNumber = parseInt(process.env.HISTORY_AMOUNT) || 50;
-
-// Stream set-up variables
-let changeStream;
-const pipeline = [];
 const PORT = process.env.PORT || 3002;
 
 // Create Mongo client
@@ -81,7 +76,11 @@ async function run() {
     const header = { 'Content-Type': 'text/event-stream', 'Connection': 'keep-alive' };
     eventStream.writeHead(200, "OK", header);
 
-    if (Object.keys(request.query).length === 0) {
+    let query = request.query
+    let streaming = query['streaming']
+    delete query['streaming']
+
+    if (Object.keys(query).length === 0) {
       // If no params are defined, it's the initial request which will return filters and some initial lines
       await writeFilterOptions(eventStream, filterOptions, {})
       collection.find()
@@ -92,7 +91,7 @@ async function run() {
             })
           });
     } else {
-      const query = Object.fromEntries(
+      query = Object.fromEntries(
           Object.entries(request.query).filter(([key, value]) =>  filterOptions.includes(key))
       )
       const queryLength = Object.keys(query).length
@@ -112,7 +111,27 @@ async function run() {
           }
         }
       }
+
+      if (streaming) {
+        let changeStream;
+        changeStream = collection.watch([{
+          $match: query,
+        }], { fullDocument: "updateLookup" });
+
+        const changeListener = async (change) => {
+          // Ignore events without fullDocument, e.g. deletes.
+          if (change.fullDocument) {
+            writeMessage(eventStream, change.fullDocument)
+          }
+        }
+        changeStream.on("change", changeListener);
+        eventStream.on('close', () => {
+          changeStream.removeListener("change", changeListener)
+        })
+      }
     }
+
+
   });
 
   app.listen(PORT);
