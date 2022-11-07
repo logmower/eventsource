@@ -119,7 +119,7 @@ async function run() {
         }], { fullDocument: "updateLookup" });
 
         const changeListener = async (change) => {
-          // Ignore events without fullDocument, e.g. deletes.
+          // Ignore events without fullDocument, e.g. deletes
           if (change.fullDocument) {
             writeMessage(eventStream, change.fullDocument)
           }
