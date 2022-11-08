@@ -1,0 +1,253 @@
+---
+apiVersion: codemowers.io/v1alpha1
+kind: GeneratedSecret
+metadata:
+  name: mongodb-application-readwrite-password
+spec:
+  mapping:
+    - key: password
+      value: "%(password)s"
+---
+apiVersion: codemowers.io/v1alpha1
+kind: GeneratedSecret
+metadata:
+  name: mongodb-application-readonly-password
+spec:
+  mapping:
+    - key: password
+      value: "%(password)s"
+---
+apiVersion: mongodbcommunity.mongodb.com/v1
+kind: MongoDBCommunity
+metadata:
+  name: mongodb
+spec:
+  additionalMongodConfig:
+    systemLog:
+      quiet: true
+  members: 3
+  type: ReplicaSet
+  version: "5.0.9"
+  security:
+    authentication:
+      modes: ["SCRAM"]
+  users:
+    - name: readwrite
+      db: application
+      passwordSecretRef:
+        name: mongodb-application-readwrite-password
+      roles:
+        - name: readWrite
+          db: application
+      scramCredentialsSecretName: mongodb-application-readwrite
+    - name: readonly
+      db: application
+      passwordSecretRef:
+        name: mongodb-application-readonly-password
+      roles:
+        - name: readOnly
+          db: application
+      scramCredentialsSecretName: mongodb-application-readonly
+  statefulSet:
+    spec:
+      logLevel: WARN
+      template:
+        spec:
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchExpressions:
+                      - key: app
+                        operator: In
+                        values:
+                          - mongodb-svc
+                  topologyKey: kubernetes.io/hostname
+      volumeClaimTemplates:
+        - metadata:
+            name: logs-volume
+          spec:
+            storageClassName: openebs-hostpath
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 512Mi
+        - metadata:
+            name: data-volume
+          spec:
+            storageClassName: openebs-hostpath
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongoexpress
+spec:
+  revisionHistoryLimit: 0
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongoexpress
+  template:
+    metadata:
+      labels:
+        app: mongoexpress
+    spec:
+      containers:
+        - name: mongoexpress
+          image: mongo-express
+          ports:
+            - name: mongoexpress
+              containerPort: 8081
+          env:
+            - name: ME_CONFIG_MONGODB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-application-readwrite
+                  key: connectionString.standard
+            - name: ME_CONFIG_MONGODB_ENABLE_ADMIN
+              value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongoexpress
+  labels:
+    app: mongoexpress
+spec:
+  selector:
+    app: mongoexpress
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8081
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mongoexpress
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    external-dns.alpha.kubernetes.io/target: traefik-yeaa8.codemowers.ee
+spec:
+  rules:
+    - host: mongoexpress-yeaa8.codemowers.ee
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: mongoexpress
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - "*.codemowers.ee"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mongodb-kubernetes-operator
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - services
+      - configmaps
+      - secrets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - statefulsets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - mongodbcommunity.mongodb.com
+    resources:
+      - mongodbcommunity
+      - mongodbcommunity/status
+      - mongodbcommunity/spec
+      - mongodbcommunity/finalizers
+    verbs:
+      - get
+      - patch
+      - list
+      - update
+      - watch
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: mongodb-database
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - patch
+      - delete
+      - get
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: mongodb-kubernetes-operator
+subjects:
+  - kind: ServiceAccount
+    name: mongodb-kubernetes-operator
+roleRef:
+  kind: Role
+  name: mongodb-kubernetes-operator
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: mongodb-database
+subjects:
+  - kind: ServiceAccount
+    name: mongodb-database
+roleRef:
+  kind: Role
+  name: mongodb-database
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mongodb-kubernetes-operator
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mongodb-database

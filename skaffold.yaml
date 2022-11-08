@@ -1,11 +1,11 @@
 apiVersion: skaffold/v3alpha1
 kind: Config
 metadata:
-  name: log-viewer-backend
+  name: logmower-eventsource
 
 build:
   artifacts:
-  - image: harbor.k-space.ee/playground/log-viewer-backend
+  - image: harbor.codemowers.eu/eaas/logmower-eventsource
     docker:
       dockerfile: Dockerfile
 
@@ -22,12 +22,12 @@ profiles:
       - command: dev
     build:
       artifacts:
-        - image: harbor.k-space.ee/playground/log-viewer-backend
+        - image: harbor.codemowers.eu/eaas/logmower-eventsource
           docker:
             target: dev
           sync:
             manual:
-              - src: '**/*.js'
+              - src: '*.js'
                 dest: .
     manifests:
       rawYaml:
