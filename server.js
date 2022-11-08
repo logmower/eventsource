@@ -78,19 +78,21 @@ async function run() {
 
     let query = request.query
     let streaming = (query['streaming'] === 'true')
+    let initial = (query['initial'] === 'true')
     delete query['streaming']
+    delete query['initial']
 
-    if (Object.keys(query).length === 0) {
-      // If no params are defined, it's the initial request which will return filters and some initial lines
+    if (initial) {
+      // The initial request will return filters and some initial lines
       await writeFilterOptions(eventStream, filterOptions, {})
       collection.find()
           .sort({$natural:-1})
-          .limit(historyNumber).toArray().then((res) => {
-            res.reverse().forEach((document) => {
-              writeMessage(eventStream, document)
-            })
-          });
-    } else {
+          .limit(historyNumber).forEach((document) => {
+            writeMessage(eventStream, document)
+          })
+    }
+
+    if (Object.keys(query).length > 0) {
       query = Object.fromEntries(
           Object.entries(request.query).filter(([key, value]) =>  filterOptions.includes(key))
       )
