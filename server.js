@@ -77,7 +77,7 @@ async function run() {
     eventStream.writeHead(200, "OK", header);
 
     let query = request.query
-    let streaming = query['streaming']
+    let streaming = Boolean(query['streaming'])
     delete query['streaming']
 
     if (Object.keys(query).length === 0) {
