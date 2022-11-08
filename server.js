@@ -111,27 +111,31 @@ async function run() {
           }
         }
       }
-
-      if (streaming) {
-        let changeStream;
-        changeStream = collection.watch([{
-          $match: query,
-        }], { fullDocument: "updateLookup" });
-
-        const changeListener = async (change) => {
-          // Ignore events without fullDocument, e.g. deletes
-          if (change.fullDocument) {
-            writeMessage(eventStream, change.fullDocument)
-          }
-        }
-        changeStream.on("change", changeListener);
-        eventStream.on('close', () => {
-          changeStream.removeListener("change", changeListener)
-        })
-      }
     }
 
+    if (streaming) {
+      for (let k in query) {
+        query['fullDocument.' + k] = query[k]
+        delete query[k]
+      }
+      let changeStream;
+      changeStream = collection.watch([
+        {
+          $match: query
+        }
+      ], { fullDocument: "updateLookup" });
 
+      const changeListener = async (change) => {
+        // Ignore events without fullDocument, e.g. deletes
+        if (change.fullDocument) {
+          writeMessage(eventStream, change.fullDocument)
+        }
+      }
+      changeStream.on("change", changeListener);
+      eventStream.on('close', () => {
+        changeStream.removeListener("change", changeListener)
+      })
+    }
   });
 
   app.listen(PORT);
