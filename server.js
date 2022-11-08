@@ -75,6 +75,7 @@ async function run() {
   app.get('/events', async function (request, eventStream) {
     const header = { 'Content-Type': 'text/event-stream', 'Connection': 'keep-alive' };
     eventStream.writeHead(200, "OK", header);
+    eventStream.write(`id: 1\nevent: ping\ndata: ${JSON.stringify({})}\n\n`) // Dummy response to make browser report the request not cancelled
 
     let query = request.query
     let streaming = (query['streaming'] === 'true')
