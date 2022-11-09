@@ -66,8 +66,6 @@ spec:
             path: /var/log
       tolerations:
         - operator: "Exists"
-          effect: "NoExecute"
-        - operator: "Exists"
           effect: "NoSchedule"
 ---
 apiVersion: v1
