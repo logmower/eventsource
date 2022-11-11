@@ -71,6 +71,19 @@ async function run() {
     eventStream.write(`id: 1\nevent: filters\ndata: ${JSON.stringify(response)}\n\n`)
   }
 
+  const transformQuery = (query, filterOptions, appendFullDocument = false) => {
+    query = Object.fromEntries(
+        Object.entries(query).filter(([key, value]) =>  filterOptions.includes(key))
+    )
+    if (appendFullDocument) {
+      for (let k in query) {
+        query['fullDocument.' + k] = query[k]
+        delete query[k]
+      }
+    }
+    return query
+  }
+
   // Triggers on GET at /event route
   app.get('/events', async function (request, eventStream) {
     const header = { 'Content-Type': 'text/event-stream', 'Connection': 'keep-alive' };
@@ -93,34 +106,27 @@ async function run() {
           })
     }
 
-    if (Object.keys(query).length > 0) {
-      query = Object.fromEntries(
-          Object.entries(request.query).filter(([key, value]) =>  filterOptions.includes(key))
-      )
-      const queryLength = Object.keys(query).length
-      if (queryLength > 0) {
-        try {
-          await writeFilterOptions(eventStream, filterOptions, query)
-          const cursor = collection.find(query, { maxTimeMS: Math.pow(queryLength, queryLength)  });
-          await cursor.forEach((d) => {
-            writeMessage(eventStream, d)
-          });
-        } catch (e) {
-          // Handle request timing out as it is expected
-          if (e.codeName === 'MaxTimeMSExpired') {
-              writeTimeoutNotify(eventStream)
-          } else {
-            throw e
-          }
+    const queryLength = Object.keys(query).length
+    if (queryLength) {
+      query = transformQuery(query, filterOptions)
+      try {
+        await writeFilterOptions(eventStream, filterOptions, query)
+        const cursor = collection.find(query, { maxTimeMS: Math.pow(queryLength, queryLength)  });
+        await cursor.forEach((d) => {
+          writeMessage(eventStream, d)
+        });
+      } catch (e) {
+        // Handle request timing out as it is expected
+        if (e.codeName === 'MaxTimeMSExpired') {
+          writeTimeoutNotify(eventStream)
+        } else {
+          throw e
         }
       }
     }
 
     if (streaming) {
-      for (let k in query) {
-        query['fullDocument.' + k] = query[k]
-        delete query[k]
-      }
+      query = transformQuery(query, filterOptions, true)
       let changeStream;
       changeStream = collection.watch([
         {
