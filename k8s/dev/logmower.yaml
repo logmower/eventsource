@@ -1,7 +1,8 @@
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: log-shipper
+  name: logmower-shipper
 spec:
   updateStrategy:
     type: RollingUpdate
@@ -9,28 +10,24 @@ spec:
       maxUnavailable: 50%
   selector:
     matchLabels:
-      app: log-shipper
+      app: logmower-shipper
   template:
     metadata:
       labels:
-        app: log-shipper
+        app: logmower-shipper
     spec:
-      serviceAccountName: log-shipper
+      serviceAccountName: logmower-shipper
       containers:
-        - name: log-shipper
-          image: harbor.k-space.ee/k-space/log-shipper
+        - name: logmower-shipper
+          image: harbor.k-space.ee/k-space/logmower-shipper-prototype
           securityContext:
             runAsUser: 0
           env:
-            - name: MY_POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
             - name: NODE_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-            - name: MONGODB_HOST
+            - name: MONGO_URI
               valueFrom:
                 secretKeyRef:
                   name: mongodb-application-readwrite
@@ -38,6 +35,14 @@ spec:
           ports:
             - containerPort: 8000
               name: metrics
+          command:
+            - /log_shipper.py
+            - --parse-json
+            - --normalize-log-level
+            - --stream-to-log-level
+            - --merge-top-level
+            - --max-collection-size
+            - "10000000000"
           resources:
             limits:
               memory: 200Mi
@@ -71,6 +76,6 @@ spec:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: log-shipper
+  name: logmower-shipper
   labels:
-    app: log-shipper
+    app: logmower-shipper
