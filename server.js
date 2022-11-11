@@ -26,7 +26,9 @@ async function run() {
   const filterOptions = [
     'kubernetes.namespace',
     'kubernetes.pod.name',
-    'kubernetes.container.name'
+    'kubernetes.container.name',
+    'from',
+    'to',
   ]
 
   const writeMessage = (eventStream, blob) => {
@@ -80,6 +82,10 @@ async function run() {
         query['fullDocument.' + k] = query[k]
         delete query[k]
       }
+    } else {
+      query['@timestamp'] = {}
+      query['from'] && (query['@timestamp']['$gte'] = new Date(Number(query['from']))) && delete query['from']
+      query['to'] && (query['@timestamp']['$lt'] = new Date(Number(query['to']))) && delete query['to']
     }
     return query
   }
