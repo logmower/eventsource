@@ -44,6 +44,7 @@ async function run() {
 
   const writeFilterOptions = async (eventStream, filterOptions, query) => {
     let response = {}
+    delete query['@timestamp']
     if (Object.keys(query).length === 0) {
       response[filterOptions[0]] = {
         parentKey: null,
