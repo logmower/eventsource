@@ -119,9 +119,12 @@ async function run() {
       try {
         await writeFilterOptions(eventStream, filterOptions, query)
         const cursor = collection.find(query, { maxTimeMS: Math.pow(queryLength, queryLength)  });
-        await cursor.forEach((d) => {
+        eventStream.on('close', () => {
+          cursor.close()
+        })
+        for await (const d of cursor) {
           writeMessage(eventStream, d)
-        });
+        }
       } catch (e) {
         // Handle request timing out as it is expected
         if (e.codeName === 'MaxTimeMSExpired') {
