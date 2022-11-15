@@ -1,4 +1,4 @@
-apiVersion: skaffold/v3alpha1
+apiVersion: skaffold/v3
 kind: Config
 metadata:
   name: logmower-eventsource
@@ -29,6 +29,11 @@ profiles:
             manual:
               - src: '*.js'
                 dest: .
+    portForward:
+      - resourceType: deployment
+        resourceName: logmower-eventsource
+        port: 9229
+        localPort: 9229
     manifests:
       rawYaml:
         - k8s/dev/deployment.yaml
