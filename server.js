@@ -134,7 +134,7 @@ async function run() {
         for await (const d of cursor) {
           writeMessage(eventStream, d)
         }
-        if (cursor.hasNext()) {
+        if (await collection.find(query).count() > queryLimit) {
           writeTimeoutNotify(eventStream)
         } else {
           writeCompletedTimeout(eventStream)
