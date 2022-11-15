@@ -5,7 +5,8 @@ const express = require('express');
 // Mongo set-up variables
 const mongoCollection = process.env.MONGO_COLLECTION || 'log';
 const mongoUri = process.env.MONGODB_HOST || 'mongodb://127.0.0.1:27017/default?replicaSet=rs0';
-const historyNumber = parseInt(process.env.HISTORY_AMOUNT) || 50;
+const historyLimit = parseInt(process.env.HISTORY_AMOUNT) || 50;
+const queryLimit = parseInt(process.env.QUERY_LIMIT) || 1000;
 const PORT = process.env.PORT || 3002;
 
 // Create Mongo client
@@ -39,6 +40,11 @@ async function run() {
 
   const writeTimeoutNotify = (eventStream) => {
     const message = `id: 1\nevent: timeout\ndata: ${JSON.stringify({})}\n\n`
+    eventStream.write(message)
+  }
+
+  const writeCompletedTimeout = (eventStream) => {
+    const message = `id: 1\nevent: completed\ndata: ${JSON.stringify({})}\n\n`
     eventStream.write(message)
   }
 
@@ -109,7 +115,7 @@ async function run() {
       await writeFilterOptions(eventStream, filterOptions, {})
       collection.find()
           .sort({$natural:-1})
-          .limit(historyNumber).forEach((document) => {
+          .limit(historyLimit).forEach((document) => {
             writeMessage(eventStream, document)
           })
     }
@@ -119,20 +125,23 @@ async function run() {
       query = transformQuery(query, filterOptions)
       try {
         await writeFilterOptions(eventStream, filterOptions, query)
-        const cursor = collection.find(query, { maxTimeMS: Math.pow(queryLength, queryLength)  });
+        const cursor = collection.find(query, {
+          limit: queryLimit
+        });
         eventStream.on('close', () => {
           cursor.close()
         })
         for await (const d of cursor) {
           writeMessage(eventStream, d)
         }
-      } catch (e) {
-        // Handle request timing out as it is expected
-        if (e.codeName === 'MaxTimeMSExpired') {
+        if (cursor.hasNext()) {
           writeTimeoutNotify(eventStream)
         } else {
-          throw e
+          writeCompletedTimeout(eventStream)
         }
+      } catch (e) {
+        // Do something with e, for instance get e.codeName
+        throw e
       }
     }
 
