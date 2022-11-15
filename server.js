@@ -86,6 +86,7 @@ async function run() {
       query['@timestamp'] = {}
       query['from'] && (query['@timestamp']['$gte'] = new Date(Number(query['from']))) && delete query['from']
       query['to'] && (query['@timestamp']['$lt'] = new Date(Number(query['to']))) && delete query['to']
+      !(Object.keys(query['@timestamp']).length) && delete query['@timestamp']
     }
     return query
   }
