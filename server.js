@@ -165,6 +165,9 @@ async function run() {
         changeStream.removeListener("change", changeListener)
       })
     }
+
+    // If streaming has been stopped without parameters, send completed as no rows are expected.
+    writeCompletedTimeout(eventStream)
   });
 
   app.listen(PORT);
