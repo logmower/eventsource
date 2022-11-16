@@ -1,5 +1,5 @@
 # pull official node image
-FROM node AS dev
+FROM harbor.k-space.ee/docker.io/library/node AS dev
 
 # define /app as working directory
 WORKDIR /app
