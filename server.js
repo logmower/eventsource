@@ -80,6 +80,11 @@ async function run() {
     eventStream.write(`id: 1\nevent: filters\ndata: ${JSON.stringify(response)}\n\n`)
   }
 
+  const writePing = (eventStream) => {
+    const message = `id: 1\nevent: ping\ndata: ${JSON.stringify({})}\n\n`
+    return eventStream.write(message)
+  }
+
   const transformQuery = (query, filterOptions, appendFullDocument = false) => {
     query = Object.fromEntries(
         Object.entries(query).filter(([key, value]) =>  filterOptions.includes(key))
@@ -102,7 +107,7 @@ async function run() {
   app.get('/events', async function (request, eventStream) {
     const header = { 'Content-Type': 'text/event-stream', 'Connection': 'keep-alive' };
     eventStream.writeHead(200, "OK", header);
-    eventStream.write(`id: 1\nevent: ping\ndata: ${JSON.stringify({})}\n\n`) // Dummy response to make browser report the request not cancelled
+    writePing(eventStream) // Dummy response to make browser report the request not cancelled
 
     let query = request.query
     let streaming = (query['streaming'] === 'true')
@@ -165,6 +170,10 @@ async function run() {
         changeStream.removeListener("change", changeListener)
       })
     }
+
+    setInterval(() => {
+      writePing(eventStream)
+    }, 10000)
 
     // If streaming has been stopped without parameters, send completed as no rows are expected.
     writeCompletedTimeout(eventStream)
