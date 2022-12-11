@@ -15,11 +15,33 @@ const mongoOptions = {
 }
 const mongoClient = new MongoClient(mongoUri, mongoOptions);
 
+
+const backend = process.env.BACKEND || 'logmower';
+const backends = {
+  logmower: {
+    filterOptions: [
+      'kubernetes.namespace',
+      'kubernetes.pod.name',
+      'kubernetes.container.name',
+      'from',
+      'to',
+    ]
+  },
+  camtiler: {
+    filterOptions: [
+      'source'
+    ]
+  }
+}
+
 /*============== CODE ==============*/
 async function run() {
-
   console.log('server.js has been launched');
   const app = express();
+
+  if (!backends[backend]) {
+    throw `Backend '${backend}' not supported`
+  }
 
   await mongoClient.connect();
   const collection = mongoClient.db().collection(mongoCollection);
@@ -32,7 +54,11 @@ async function run() {
     'to',
   ]
 
-  const writeMessage = (eventStream, blob) => {
+  app.get('/events/backend', function (request, response) {
+      response.end(backend)
+  });
+
+  const writeMessage = async (eventStream, blob) => {
     const id = blob._id || null
     const message = `id: ${id}\nevent: message\ndata: ${JSON.stringify(blob)}\n\n`
     eventStream.write(message)
@@ -114,6 +140,8 @@ async function run() {
     let initial = (query['initial'] === 'true')
     delete query['streaming']
     delete query['initial']
+
+    const filterOptions = backends[backend].filterOptions
 
     if (initial) {
       // The initial request will return filters and some initial lines
