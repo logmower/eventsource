@@ -1,0 +1,70 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: logmower-eventsource
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    cert-manager.io/cluster-issuer: default
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-sso@kubernetescrd
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    external-dns.alpha.kubernetes.io/target: traefik.k-space.ee
+spec:
+  rules:
+    - host: playground.k-space.ee
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/events"
+            backend:
+              service:
+                name: logmower-eventsource
+                port:
+                  number: 3002
+  tls:
+    - hosts:
+        - "*.k-space.ee"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logmower-eventsource
+spec:
+  type: ClusterIP
+  selector:
+    app: logmower-eventsource
+  ports:
+    - protocol: TCP
+      port: 3002
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logmower-eventsource
+spec:
+  selector:
+    matchLabels:
+      app: logmower-eventsource
+  template:
+    metadata:
+      labels:
+        app: logmower-eventsource
+    spec:
+      containers:
+        - name: logmower-eventsource
+          image: harbor.codemowers.eu/erkiaas/logmower-eventsource
+          ports:
+            - containerPort: 3002
+          env:
+            - name: MONGODB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-application-readonly
+                  key: connectionString.standard
+            - name: BACKEND
+              value: 'camtiler'
+            - name: BACKEND_BROKER_URL
+              value: 'http://camtiler-event-broker'
+            - name: QUERY_LIMIT
+              value: '1000'

@@ -1,4 +1,4 @@
-const { MongoClient, MongoClientOptions } = require("mongodb");
+const { MongoClient, MongoClientOptions, ObjectId} = require("mongodb");
 const express = require('express');
 
 /*============== VARIABLE DECLARATION ==============*/
@@ -30,7 +30,8 @@ const backends = {
   camtiler: {
     filterOptions: [
       'source'
-    ]
+    ],
+    broker: process.env.BACKEND_BROKER_URL || 'http://camtiler-event-broker'
   }
 }
 
@@ -50,10 +51,34 @@ async function run() {
       response.end(backend)
   });
 
-  const writeMessage = async (eventStream, blob) => {
+  app.get('/events/details/:id', async function (request, response) {
+    const row = await collection.find(ObjectId(request.params.id)).limit(1).next()
+    if (backends[backend].broker) {
+      await fetch(backends[backend].broker + '/details/', {
+        method: "POST",
+        body: JSON.stringify(row),
+      }).then((res) => res.text())
+          .then((res) => response.end(res));
+    } else {
+      response.end(row)
+    }
+  });
+
+  const writeMessage = async (eventStream, blob, type) => {
     const id = blob._id || null
-    const message = `id: ${id}\nevent: message\ndata: ${JSON.stringify(blob)}\n\n`
-    eventStream.write(message)
+    if (backends[backend].broker) {
+      fetch(backends[backend].broker + `/${type}/`, {
+        method: "POST",
+        body: JSON.stringify(blob),
+      }).then((r) => r.text())
+          .then((r) => {
+            const message = `id: ${id}\nevent: message\ndata: ${r}\n\n`
+            eventStream.write(message)
+          });
+    } else {
+      const message = `id: ${id}\nevent: message\ndata: ${JSON.stringify(blob)}\n\n`
+      eventStream.write(message)
+    }
   }
 
   const writeTimeoutNotify = (eventStream) => {
@@ -138,10 +163,10 @@ async function run() {
     if (initial) {
       // The initial request will return filters and some initial lines
       await writeFilterOptions(eventStream, filterOptions, {})
-      collection.find()
-          .sort({$natural:-1})
+      await collection.find()
+          .sort({$natural: -1})
           .limit(historyLimit).forEach((document) => {
-            writeMessage(eventStream, document)
+            writeMessage(eventStream, document, 'initial')
           })
     }
 
@@ -157,7 +182,7 @@ async function run() {
           cursor.close()
         })
         for await (const d of cursor) {
-          writeMessage(eventStream, d)
+          await writeMessage(eventStream, d, 'query')
         }
         if (await collection.find(query).count() > queryLimit && !streaming) {
           writeTimeoutNotify(eventStream)
@@ -182,7 +207,7 @@ async function run() {
       const changeListener = async (change) => {
         // Ignore events without fullDocument, e.g. deletes
         if (change.fullDocument) {
-          writeMessage(eventStream, change.fullDocument)
+          await writeMessage(eventStream, change.fullDocument, 'streaming')
         }
       }
       changeStream.on("change", changeListener);
