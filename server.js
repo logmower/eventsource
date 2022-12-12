@@ -193,7 +193,7 @@ async function run() {
 
     setInterval(() => {
       writePing(eventStream)
-    }, 10000)
+    }, 9000)
 
     // If streaming has been stopped without parameters, send completed as no rows are expected.
     writeCompletedTimeout(eventStream)
