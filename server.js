@@ -15,7 +15,7 @@ const mongoOptions = {
 }
 const mongoClient = new MongoClient(mongoUri, mongoOptions);
 
-
+// Define different supported backends.
 const backend = process.env.BACKEND || 'logmower';
 const backends = {
   logmower: {
@@ -45,14 +45,6 @@ async function run() {
 
   await mongoClient.connect();
   const collection = mongoClient.db().collection(mongoCollection);
-
-  const filterOptions = [
-    'kubernetes.namespace',
-    'kubernetes.pod.name',
-    'kubernetes.container.name',
-    'from',
-    'to',
-  ]
 
   app.get('/events/backend', function (request, response) {
       response.end(backend)
