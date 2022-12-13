@@ -52,16 +52,17 @@ async function run() {
   });
 
   app.get('/events/details/:id', async function (request, response) {
-    const row = await collection.find(ObjectId(request.params.id)).limit(1).next()
-    if (backends[backend].broker) {
-      await fetch(backends[backend].broker + '/details/', {
-        method: "POST",
-        body: JSON.stringify(row),
-      }).then((res) => res.text())
-          .then((res) => response.end(res));
-    } else {
-      response.end(row)
-    }
+    collection.findOne(ObjectId(request.params.id)).then(async (row) => {
+      if (backends[backend].broker) {
+        await fetch(backends[backend].broker + '/details/', {
+          method: "POST",
+          body: JSON.stringify(row),
+        }).then((res) => res.text())
+            .then((res) => response.end(res));
+      } else {
+        response.end(row)
+      }
+    })
   });
 
   const writeMessage = async (eventStream, blob, type) => {
