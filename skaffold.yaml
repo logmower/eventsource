@@ -5,7 +5,7 @@ metadata:
 
 build:
   artifacts:
-  - image: harbor.codemowers.eu/eaas/logmower-eventsource
+  - image: harbor.codemowers.eu/erkiaas/logmower-eventsource
     docker:
       dockerfile: Dockerfile
 
@@ -22,7 +22,7 @@ profiles:
       - command: dev
     build:
       artifacts:
-        - image: harbor.codemowers.eu/eaas/logmower-eventsource
+        - image: harbor.codemowers.eu/erkiaas/logmower-eventsource
           docker:
             target: dev
           sync:
