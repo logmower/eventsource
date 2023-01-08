@@ -17,4 +17,4 @@ ENTRYPOINT npm run dev
 
 # production
 FROM dev AS prod
-ENTRYPOINT node.js server.js
+ENTRYPOINT node server.js
