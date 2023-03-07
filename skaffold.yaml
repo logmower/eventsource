@@ -5,7 +5,7 @@ metadata:
 
 build:
   artifacts:
-  - image: harbor.codemowers.eu/erkiaas/logmower-eventsource
+  - image: harbor.k-space.ee/eaas/logmower-eventsource
     docker:
       dockerfile: Dockerfile
 
@@ -22,9 +22,9 @@ profiles:
       - command: dev
     build:
       artifacts:
-        - image: harbor.codemowers.eu/erkiaas/logmower-eventsource
+        - image: harbor.k-space.ee/eaas/logmower-eventsource
           docker:
-            target: dev
+            target: prod
           sync:
             manual:
               - src: '*.js'
@@ -36,4 +36,4 @@ profiles:
         localPort: 9229
     manifests:
       rawYaml:
-        - k8s/dev/deployment.yaml
+        - k8s/dev/deployment-camtiler.yaml
