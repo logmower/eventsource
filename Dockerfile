@@ -1,5 +1,5 @@
 # pull official node image
-FROM harbor.k-space.ee/docker.io/library/node AS dev
+FROM node:lts-alpine AS dev
 
 # define /app as working directory
 WORKDIR /app
